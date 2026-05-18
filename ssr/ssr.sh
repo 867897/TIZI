@@ -357,6 +357,9 @@ Set_config_password(){
 Set_config_method(){
 	echo -e "请选择要设置的ShadowsocksR账号 加密方式（已移除已被破解/不安全的算法：none / rc4 / rc4-md5* / aes-*-ctr / aes-*-cfb8 / salsa20）
 
+ ${Green_font_prefix}[推荐组合]${Font_color_suffix} 加密=1(aes-256-cfb) + 协议=auth_aes128_sha1 + 混淆=tls1.2_ticket_auth
+           协议层带 HMAC-SHA1 校验，等价穷人版 AEAD；TLS 混淆抗主动探测。
+
  ${Green_font_prefix}1.${Font_color_suffix} aes-256-cfb         ${Tip} 通用兼容，安全强度足够
  ${Green_font_prefix}2.${Font_color_suffix} aes-192-cfb
  ${Green_font_prefix}3.${Font_color_suffix} aes-128-cfb
@@ -382,12 +385,12 @@ Set_config_protocol(){
  ${Green_font_prefix}1.${Font_color_suffix} origin
  ${Green_font_prefix}2.${Font_color_suffix} auth_sha1_v4
  ${Green_font_prefix}3.${Font_color_suffix} auth_aes128_md5
- ${Green_font_prefix}4.${Font_color_suffix} auth_aes128_sha1
+ ${Green_font_prefix}4.${Font_color_suffix} auth_aes128_sha1   ${Green_font_prefix}[推荐]${Font_color_suffix} HMAC-SHA1 完整性校验
  ${Green_font_prefix}5.${Font_color_suffix} auth_chain_a
  ${Green_font_prefix}6.${Font_color_suffix} auth_chain_b
  ${Tip} 如果使用 auth_chain_a 协议，请加密方式选择 none，混淆随意(建议 plain)" && echo
-	read -e -p "(默认: 2. auth_sha1_v4):" ssr_protocol
-	[[ -z "${ssr_protocol}" ]] && ssr_protocol="2"
+	read -e -p "(默认: 4. auth_aes128_sha1):" ssr_protocol
+	[[ -z "${ssr_protocol}" ]] && ssr_protocol="4"
 	if [[ ${ssr_protocol} == "1" ]]; then
 		ssr_protocol="origin"
 	elif [[ ${ssr_protocol} == "2" ]]; then
@@ -401,7 +404,7 @@ Set_config_protocol(){
 	elif [[ ${ssr_protocol} == "6" ]]; then
 		ssr_protocol="auth_chain_b"
 	else
-		ssr_protocol="auth_sha1_v4"
+		ssr_protocol="auth_aes128_sha1"
 	fi
 	echo && echo ${Separator_1} && echo -e "	协议 : ${Green_font_prefix}${ssr_protocol}${Font_color_suffix}" && echo ${Separator_1} && echo
 	if [[ ${ssr_protocol} != "origin" ]]; then
@@ -420,12 +423,12 @@ Set_config_obfs(){
  ${Green_font_prefix}2.${Font_color_suffix} http_simple
  ${Green_font_prefix}3.${Font_color_suffix} http_post
  ${Green_font_prefix}4.${Font_color_suffix} random_head
- ${Green_font_prefix}5.${Font_color_suffix} tls1.2_ticket_auth
+ ${Green_font_prefix}5.${Font_color_suffix} tls1.2_ticket_auth ${Green_font_prefix}[推荐]${Font_color_suffix} 抗主动探测
  ${Tip} 如果使用 ShadowsocksR 加速游戏，请选择 混淆兼容原版或 plain 混淆，然后客户端选择 plain，否则会增加延迟 !
  另外, 如果你选择了 tls1.2_ticket_auth，那么客户端可以选择 tls1.2_ticket_fastauth，这样即能伪装又不会增加延迟 !
  如果你是在日本、美国等热门地区搭建，那么选择 plain 混淆可能被墙几率更低 !" && echo
-	read -e -p "(默认: 1. plain):" ssr_obfs
-	[[ -z "${ssr_obfs}" ]] && ssr_obfs="1"
+	read -e -p "(默认: 5. tls1.2_ticket_auth):" ssr_obfs
+	[[ -z "${ssr_obfs}" ]] && ssr_obfs="5"
 	if [[ ${ssr_obfs} == "1" ]]; then
 		ssr_obfs="plain"
 	elif [[ ${ssr_obfs} == "2" ]]; then
@@ -437,7 +440,7 @@ Set_config_obfs(){
 	elif [[ ${ssr_obfs} == "5" ]]; then
 		ssr_obfs="tls1.2_ticket_auth"
 	else
-		ssr_obfs="plain"
+		ssr_obfs="tls1.2_ticket_auth"
 	fi
 	echo && echo ${Separator_1} && echo -e "	混淆 : ${Green_font_prefix}${ssr_obfs}${Font_color_suffix}" && echo ${Separator_1} && echo
 	if [[ ${ssr_obfs} != "plain" ]]; then
@@ -627,21 +630,19 @@ EOF
 	chown root:root "${config_user_file}" 2>/dev/null || true
 }
 Check_python(){
-	python_ver=`python -h`
-	if [[ -z ${python_ver} ]]; then
-		echo -e "${Info} 没有安装Python，开始安装..."
-		if [[ ${release} == "centos" ]]; then
-			yum install -y python
-		else
-			apt-get install -y python
-            if [[ $? -ne 0 ]]; then
-                echo -e "${Info} python安装失败，尝试安装python2..."
-                apt-get install -y python2
-                if [[ -e /usr/bin/python2 ]]; then
-                    ln -s /usr/bin/python2 /usr/bin/python
-                fi
-            fi
-		fi
+	if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || command -v python2 >/dev/null 2>&1; then
+		return 0
+	fi
+	echo -e "${Info} 没有安装Python，开始安装..."
+	if [[ ${release} == "centos" ]]; then
+		yum install -y python3 >/dev/null 2>&1 || yum install -y python >/dev/null 2>&1
+		dnf install -y python3 >/dev/null 2>&1 || dnf install -y python >/dev/null 2>&1
+	else
+		apt-get install -y python3 >/dev/null 2>&1 || apt-get install -y python-is-python3 >/dev/null 2>&1
+	fi
+	if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1 && ! command -v python2 >/dev/null 2>&1; then
+		echo -e "${Error} Python 安装失败，请先手动安装 python3。"
+		exit 1
 	fi
 }
 Centos_yum(){
@@ -1536,6 +1537,7 @@ menu_status(){
 check_sys
 [[ ${release} != "debian" ]] && [[ ${release} != "ubuntu" ]] && [[ ${release} != "centos" ]] && echo -e "${Error} 本脚本不支持当前系统 ${release} !" && exit 1
 echo -e "  ShadowsocksR 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
+  ---- Toyo | doub.io/ss-jc42 ----
 
   ${Green_font_prefix}1.${Font_color_suffix} 安装 ShadowsocksR
   ${Green_font_prefix}2.${Font_color_suffix} 更新 ShadowsocksR
