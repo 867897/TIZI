@@ -30,14 +30,27 @@ check_running(){
 		return 1
 	fi
 }
+
+resolve_python(){
+	if command -v python3 >/dev/null 2>&1; then
+		python_ver="$(command -v python3)"
+	elif command -v python >/dev/null 2>&1; then
+		python_ver="$(command -v python)"
+	elif command -v python2 >/dev/null 2>&1; then
+		python_ver="$(command -v python2)"
+	else
+		echo -e "${Error_font_prefix}[错误]${Font_suffix} 未找到 Python 解释器，请先安装 python3 !"
+		return 1
+	fi
+}
+
 do_start(){
 	check_running
 	if [[ $? -eq 0 ]]; then
 	echo -e "${Info_font_prefix}[信息]${Font_suffix} $NAME (PID ${PID}) 正在运行..." && exit 0
 	else
 		cd ${FOLDER}
-		#python_ver=$(ls /usr/bin|grep -e "^python[23]\.[1-9]\+$"|tail -1)
-		python_ver="python"
+		resolve_python || exit 1
 		ulimit -n 512000
 		nohup "${python_ver}" "$BIN" -c "$CONF" a >> ssserver.log 2>&1 &
 		sleep 2s
